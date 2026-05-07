@@ -5,10 +5,10 @@
 // Command line arguments can be added later for things like window size, dev mode, etc.
 int main(void) {
     
-    if (APP_INIT() != APP_SUCCESS) {
+    if (app_init() != APP_SUCCESS) {
         return 1;
     }
-    uint8_t status = APP_RUN();
-    APP_QUIT();
+    uint8_t status = app_run();
+    app_quit();
     return status;
 }

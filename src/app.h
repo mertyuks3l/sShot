@@ -35,8 +35,8 @@ enum Session{
 };
 
 // Function prototypes
-int APP_INIT();
-int APP_RUN(void);
-void APP_QUIT();
+int app_init(void);
+int app_run(void);
+void app_quit(void);
 
 #endif // APP_H

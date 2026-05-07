@@ -81,8 +81,8 @@ void send_notification(const char *title, const char *message) {
 }
 
 
-// Global functions (ALL CAPS)
-int APP_INIT(void){
+// Global functions
+int app_init(void){
     // Get the current session type first
     current_session = get_session();
 
@@ -154,7 +154,7 @@ int APP_INIT(void){
     
 }
 
-int APP_RUN(void) {
+int app_run(void) {
     // Main loop
     while (is_running) {
         process_input(&event, all_buttons);
@@ -164,7 +164,7 @@ int APP_RUN(void) {
     return APP_SUCCESS;
 }
 
-void APP_QUIT() { 
+void app_quit() { 
     // Cleanup notification system
     notify_uninit();
 
