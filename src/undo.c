@@ -82,6 +82,14 @@ void push_undo_state(SDL_Renderer* renderer, SDL_Surface *original_surface, SDL_
     undo_stack = push(undo_stack, state);
 }
 
+void free_state(UndoState *state) {
+    if (state) {
+        SDL_DestroySurface(state->image_surface);
+        SDL_DestroyTexture(state->image_tex);
+        free(state);
+    }
+}
+
 void undo(SDL_Renderer* renderer, SDL_Surface **original_surface, SDL_Texture **image_tex, SDL_FRect *image_rect, float *image_tex_width, float *image_tex_height) {
     if (!undo_stack) {
         return;
@@ -92,6 +100,8 @@ void undo(SDL_Renderer* renderer, SDL_Surface **original_surface, SDL_Texture **
     UndoState *state = top->state;
 
     // Restore the image texture and related info
+    SDL_DestroySurface(*original_surface);
+    SDL_DestroyTexture(*image_tex);
     *original_surface = copy_surface(state->image_surface);
     *image_tex = copy_texture(renderer, state->image_tex, state->image_tex_width, state->image_tex_height);
     *image_rect = state->image_rect;
@@ -99,7 +109,7 @@ void undo(SDL_Renderer* renderer, SDL_Surface **original_surface, SDL_Texture **
     *image_tex_height = state->image_tex_height;
 
     // Free the popped undo state and node
-    free(state);
+    free_state(state);
     undo_stack = top->next;
     free(top);
 }
@@ -108,9 +118,7 @@ void free_undo_stack() {
     while (undo_stack) {
         UndoNode *temp = undo_stack;
         undo_stack = undo_stack->next;
-        SDL_DestroySurface(temp->state->image_surface);
-        SDL_DestroyTexture(temp->state->image_tex);
-        free(temp->state);
+        free_state(temp->state);
         free(temp);
     }
 }
