@@ -17,7 +17,7 @@ typedef struct {
     SDL_FRect rect;
     SDL_Texture *texture;
     bool is_hovered;
-    void (*on_click)(ButtonType type); // Function pointer for click action
+    void (*on_click)(); // Function pointer for click action
     
 } Button;
 
