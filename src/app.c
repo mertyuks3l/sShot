@@ -252,7 +252,7 @@ bool save_image(SDL_Surface *surface, const char *path) {
 void on_save_button_click() {
     const char* save_path = get_save_path_from_user();
     if (save_path == NULL) {
-        printf("Save cancelled by user.\n");
+        fprintf(stderr, "Save cancelled by user.\n");
         return;
     }
 
@@ -260,10 +260,9 @@ void on_save_button_click() {
 
     if (save_image(original_surface, save_path) != true) {
         fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
-        SDL_DestroySurface(original_surface); // There is something wrong with this. 
         send_notification("sShot Error", "Failed to save screenshot.");
     } else {
-        printf("Image saved successfully to %s\n", save_path);
+        fprintf(stdout, "Image saved successfully to %s\n", save_path);
         send_notification("sShot", "Screenshot saved successfully!");
         is_running = false;
     }
@@ -290,7 +289,7 @@ void copy_image_to_clipboard() {
             fprintf(stderr, "Error copying image to clipboard with wl-copy\n");
             send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
         } else {
-            printf("Image copied to clipboard successfully using wl-copy\n");
+            fprintf(stdout, "Image copied to clipboard successfully using wl-copy\n");
         }
     } else {
         // Use xclip to copy the image to clipboard
@@ -298,7 +297,7 @@ void copy_image_to_clipboard() {
             fprintf(stderr, "Error copying image to clipboard with xclip\n");
             send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
         } else {
-            printf("Image copied to clipboard successfully using xclip\n");
+            fprintf(stdout, "Image copied to clipboard successfully using xclip\n");
         }
     }
     
