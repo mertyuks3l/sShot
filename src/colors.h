@@ -9,8 +9,8 @@
 
 static const SDL_Color COLOR_SEMI_TRANSPARENT_BLUE = {0, 200, 255, 120};
 
-static const SDL_Color COLOR_BUTTON_HOVER = {0, 200, 255, 120}; // White for default button color
-static const SDL_Color BACKGROUND_COLOR = {30, 30, 30, 255};  // Light gray for background
+static const SDL_Color COLOR_BUTTON_HOVER = {0, 200, 255, 120};
+static const SDL_Color BACKGROUND_COLOR = {30, 30, 30, 255};
 
 
 #endif // COLORS_H
