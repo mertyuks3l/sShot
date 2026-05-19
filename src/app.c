@@ -291,25 +291,21 @@ void copy_image_to_clipboard() {
         send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
         return;
     }
-    
+
+    int result = -1;
     if (current_session == WAYLAND) {
-        // Use wl-copy to copy the image to clipboard
-        if (system("cat /tmp/sshot_clipboard.png | wl-copy --type image/png") != 0) {
-            fprintf(stderr, "Error copying image to clipboard with wl-copy\n");
-            send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
-        } else {
-            fprintf(stdout, "Image copied to clipboard successfully using wl-copy\n");
-        }
+        result = system("wl-copy --type image/png < /tmp/sshot_clipboard.png");
     } else {
-        // Use xclip to copy the image to clipboard
-        if (system("xclip -selection clipboard -t image/png -i /tmp/sshot_clipboard.png") != 0) {
-            fprintf(stderr, "Error copying image to clipboard with xclip\n");
-            send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
-        } else {
-            fprintf(stdout, "Image copied to clipboard successfully using xclip\n");
-        }
+        result = system("xclip -selection clipboard -t image/png -i /tmp/sshot_clipboard.png");
     }
-    
+
+    if (result != 0) {
+        fprintf(stderr, "Error copying image to clipboard\n");
+        send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
+        return;
+    }
+
+    fprintf(stdout, "Image copied to clipboard successfully\n");
     send_notification("sShot", "Screenshot copied to clipboard successfully!");
     app_window.is_running = false; // Exit the application after copying to clipboard
 }
