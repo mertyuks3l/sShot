@@ -17,7 +17,7 @@ typedef struct {
     SDL_FRect rect;
     SDL_Texture *texture;
     bool is_hovered;
-    void (*on_click)(); // Function pointer for click action
+    void (*on_click)(ButtonType type); // Function pointer for click action
     
 } Button;
 
@@ -29,6 +29,6 @@ void render_button(SDL_Renderer* renderer, Button* button, SDL_Color color);
 bool is_button_hovered(Button* button, int mouse_x, int mouse_y);
 void handle_button_hover(Button* buttons[], int button_count, int mouse_x, int mouse_y);
 void destroy_button(Button* button);
-void bind_button_to_function(Button* button, void (*on_click)());
+void bind_button_to_function(Button* button, void (*on_click)(ButtonType type));
 
 #endif // BUTTONS_H

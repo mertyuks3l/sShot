@@ -15,35 +15,43 @@
 #define DEFAULT_BUTTON_SIZE 20
 #define BUTTON_COUNT 3
 
-int current_session;
 
-SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
-int window_width = 0;
-int window_height = 0;
-bool is_running = true;
+typedef struct {
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    int width, height;
+    bool is_running;
+} AppWindow;
+
+typedef struct {
+    SDL_Surface* surface;
+    SDL_Texture* texture;
+    SDL_FRect image_rect;
+    float texture_width, texture_height;
+} Screenshot;
+
+typedef struct {
+    SDL_FRect rect;
+    bool is_drawing;
+    bool is_dragging;
+    float start_x, start_y;
+} Selection;
+
+AppWindow app_window;
+Screenshot screenshot;
+Selection selection;
+
 SDL_Event event;
 
-SDL_FRect selection_rect = {0, 0, 0, 0}; // To store the current selection rectangle
+int current_session;
+float zoom_speeed = 0.05; // Sensitivity for zooming in/out the image
+bool is_mouse_over_buttons = false;
 
+Button *all_buttons[BUTTON_COUNT];
 Button *save_button;
 Button *copy_button;
 Button *fullscreen_button;
 int fscreen_button_spacing = 20; // Spacing between buttons
-
-SDL_Surface* original_surface = NULL; 
-SDL_Texture* display_texture = NULL;
-SDL_FRect image_rect = {0, 0, 0, 0}; // To store the position and size of the loaded image
-float display_texture_width, display_texture_height; 
-float zoom_sens = 0.05; // Sensitivity for zooming in/out the image
-
-
-bool is_drawing_selection_rect = false;
-bool is_dragging_selection_rect = false;
-bool is_mouse_over_buttons = false;
-float start_x, start_y;
-
-Button *all_buttons[BUTTON_COUNT];
 
 char *icon_path = ASSET_PATH "icon.png"; // This is for the notification icon
 
@@ -53,10 +61,10 @@ void process_input(SDL_Event *event, Button *buttons[]);
 void update();
 void render();
 bool load_assets();
-void on_fullscreen_button_click();
-void on_save_button_click();
+void on_fullscreen_button_click(ButtonType type);
+void on_save_button_click(ButtonType type);
 void copy_image_to_clipboard();
-void on_copy_button_click();
+void on_copy_button_click(ButtonType type);
 void handle_window_resize();
 void zoomin_image();
 void zoomout_image();
@@ -88,12 +96,12 @@ int app_init(void){
 
     // Take screenshot according to the session type and store the file path in a global variable
     if (current_session == WAYLAND) {
-        original_surface = take_ss_wayland();
+        screenshot.surface = take_ss_wayland();
     } else {
-        original_surface = take_ss_x11();
+        screenshot.surface = take_ss_x11();
     }
 
-    if (original_surface == NULL) {
+    if (screenshot.surface == NULL) {
         send_notification("sShot Error", "Failed to take screenshot. Please try again.");
         return APP_ERROR_INIT;
     }
@@ -105,30 +113,30 @@ int app_init(void){
     }
 
     SDL_PumpEvents();
-    SDL_SyncWindow(window);  // Wait for Wayland compositor to configure the window
+    SDL_SyncWindow(app_window.window);  // Wait for Wayland compositor to configure the window
     // get window size
-    SDL_GetWindowSizeInPixels(window, &window_width, &window_height);
+    SDL_GetWindowSizeInPixels(app_window.window, &app_window.width, &app_window.height);
 
-    display_texture = SDL_CreateTextureFromSurface(renderer, original_surface);
+    screenshot.texture = SDL_CreateTextureFromSurface(app_window.renderer, screenshot.surface);
 
-    if (display_texture == NULL) {
+    if (screenshot.texture == NULL) {
         fprintf(stderr, "Error creating texture from surface: %s\n", SDL_GetError());
-        SDL_DestroySurface(original_surface);
+        SDL_DestroySurface(screenshot.surface);
         send_notification("sShot Error", "Failed to take screenshot. Please try again.");
         return APP_ERROR_INIT;
     }
 
-    image_rect.w = (float)original_surface->w;
-    image_rect.h = (float)original_surface->h;
+    screenshot.image_rect.w = (float)screenshot.surface->w;
+    screenshot.image_rect.h = (float)screenshot.surface->h;
 
-    SDL_GetTextureSize(display_texture, &display_texture_width, &display_texture_height);
+    SDL_GetTextureSize(screenshot.texture, &screenshot.texture_width, &screenshot.texture_height);
     
-    SDL_SetTextureScaleMode(display_texture, SDL_SCALEMODE_LINEAR);
+    SDL_SetTextureScaleMode(screenshot.texture, SDL_SCALEMODE_LINEAR);
 
     // Create buttons
-    save_button = create_button(renderer, SAVE, ASSET_PATH "save_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
-    copy_button = create_button(renderer, COPY, ASSET_PATH "copy_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
-    fullscreen_button = create_button(renderer, FULLSCREEN, ASSET_PATH "fullscreen_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+    save_button = create_button(app_window.renderer, SAVE, ASSET_PATH "save_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+    copy_button = create_button(app_window.renderer, COPY, ASSET_PATH "copy_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
+    fullscreen_button = create_button(app_window.renderer, FULLSCREEN, ASSET_PATH "fullscreen_icon.svg", 0, 0, DEFAULT_BUTTON_SIZE);
 
     // Bind buttons to functions
     bind_button_to_function(save_button, on_save_button_click);
@@ -136,18 +144,18 @@ int app_init(void){
     bind_button_to_function(fullscreen_button, on_fullscreen_button_click);
 
     // Top right corner for fullscreen button
-    fullscreen_button->rect.x = window_width - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
+    fullscreen_button->rect.x = app_window.width - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
     fullscreen_button->rect.y = fscreen_button_spacing;
 
-    for (int i = 0; i < BUTTON_COUNT; i++) {
-        all_buttons[i] = (i == 0) ? save_button : (i == 1) ? copy_button : fullscreen_button;
-    }
+    all_buttons[0] = save_button;
+    all_buttons[1] = copy_button;
+    all_buttons[2] = fullscreen_button;
 
     // init notification system
     notify_init(TITLE);
 
     // Everything is initialized successfully
-    is_running = true;
+    app_window.is_running = true;
 
     return APP_SUCCESS;
 
@@ -156,7 +164,7 @@ int app_init(void){
 
 int app_run(void) {
     // Main loop
-    while (is_running) {
+    while (app_window.is_running) {
         process_input(&event, all_buttons);
         update();
         render();
@@ -174,26 +182,27 @@ void app_quit() {
     destroy_button(fullscreen_button);
 
     // Free loaded image
-    if (display_texture) {
-        SDL_DestroyTexture(display_texture);
-        display_texture = NULL;
+    if (screenshot.texture) {
+        SDL_DestroyTexture(screenshot.texture);
+        screenshot.texture = NULL;
     }
-    if (original_surface) {
-        SDL_DestroySurface(original_surface);
-        original_surface = NULL;
+    if (screenshot.surface) {
+        SDL_DestroySurface(screenshot.surface);
+        screenshot.surface = NULL;
     }
     // Free undo stack
     free_undo_stack();
     
     // Destroy renderer, window and quit
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
+    SDL_DestroyRenderer(app_window.renderer);
+    SDL_DestroyWindow(app_window.window);
     SDL_Quit();
 }
 
-void on_fullscreen_button_click() {
+void on_fullscreen_button_click(ButtonType type) {
+    (void)type; // unused
     // Make the current rect as the same as the image rect
-    selection_rect = image_rect; 
+    selection.rect = screenshot.image_rect; 
 }
 
 typedef struct {
@@ -249,7 +258,8 @@ bool save_image(SDL_Surface *surface, const char *path) {
     }
 }
 
-void on_save_button_click() {
+void on_save_button_click(ButtonType type) {
+    (void)type; // unused
     const char* save_path = get_save_path_from_user();
     if (save_path == NULL) {
         fprintf(stderr, "Save cancelled by user.\n");
@@ -258,13 +268,12 @@ void on_save_button_click() {
 
     crop_image(); // This will cut both the texture and the surface to the selection_rect
 
-    if (save_image(original_surface, save_path) != true) {
-        fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
+    if (save_image(screenshot.surface, save_path) != true) {
         send_notification("sShot Error", "Failed to save screenshot.");
     } else {
         fprintf(stdout, "Image saved successfully to %s\n", save_path);
         send_notification("sShot", "Screenshot saved successfully!");
-        is_running = false;
+        app_window.is_running = false;
     }
 }
 
@@ -277,7 +286,7 @@ void copy_image_to_clipboard() {
     
     char* ss_clipboard_filepath = "/tmp/sshot_clipboard.png"; // Temporary file path for the cropped image
     
-    if (save_image(original_surface, ss_clipboard_filepath) != true) {
+    if (save_image(screenshot.surface, ss_clipboard_filepath) != true) {
         fprintf(stderr, "Error saving image for clipboard: %s\n", SDL_GetError());
         send_notification("sShot Error", "Failed to copy screenshot to clipboard.");
         return;
@@ -302,10 +311,11 @@ void copy_image_to_clipboard() {
     }
     
     send_notification("sShot", "Screenshot copied to clipboard successfully!");
-    is_running = false; // Exit the application after copying to clipboard
+    app_window.is_running = false; // Exit the application after copying to clipboard
 }
 
-void on_copy_button_click() {
+void on_copy_button_click(ButtonType type) {
+    (void)type; // unused
     copy_image_to_clipboard();
 }
 
@@ -315,16 +325,16 @@ bool initialize_window() {
            return false;
     }
     
-    if (SDL_CreateWindowAndRenderer(TITLE, 1920, 1080, SDL_WINDOW_FULLSCREEN, &window, &renderer) != true) {
+    if (SDL_CreateWindowAndRenderer(TITLE, 1920, 1080, SDL_WINDOW_FULLSCREEN, &app_window.window, &app_window.renderer) != true) {
         return false;
     }
 
-    if (window == NULL || renderer == NULL) {
+    if (app_window.window == NULL || app_window.renderer == NULL) {
         fprintf(stderr, "Error creating window or renderer: %s\n", SDL_GetError());
         return false;
     }
 
-    if (SDL_SetRenderVSync(renderer, 1) != true) {
+    if (SDL_SetRenderVSync(app_window.renderer, 1) != true) {
         fprintf(stderr, "Error enabling VSync: %s\n", SDL_GetError());
         return false;
     }
@@ -339,7 +349,7 @@ void process_input(SDL_Event *event, Button *buttons[]) {
             switch (event->type)
             {
               case SDL_EVENT_QUIT:
-                    is_running = false;
+                    app_window.is_running = false;
                     return;
                 case SDL_EVENT_KEY_UP:
                     break;
@@ -350,37 +360,37 @@ void process_input(SDL_Event *event, Button *buttons[]) {
                     bool ctrl = (mod & SDL_KMOD_CTRL) != 0;
 
                     if (key == SDLK_ESCAPE || key == SDLK_Q) {
-                        is_running = false;
+                        app_window.is_running = false;
                         return;
                     }
                     if (ctrl && key == SDLK_Z) {
-                        undo(renderer, &original_surface, &display_texture, &image_rect, &display_texture_width, &display_texture_height);
-                        selection_rect = image_rect; // Set selection_rect to the new image_rect after undoing
+                        undo(app_window.renderer, &screenshot.surface, &screenshot.texture, &screenshot.image_rect, &screenshot.texture_width, &screenshot.texture_height);
+                        selection.rect = screenshot.image_rect; // Set selection_rect to the new image_rect after undoing
                     }
                     if (ctrl && key == SDLK_C){
                         copy_image_to_clipboard();
                     }
                     if (ctrl && key == SDLK_S){
-                        on_save_button_click();
+                        on_save_button_click(SAVE);
                     }
                     break;
 
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    mouse_left_button_down(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect, buttons);
+                    mouse_left_button_down(event, &selection.is_drawing, &selection.is_dragging, &selection.start_x, &selection.start_y, &selection.rect, buttons);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
-                if (is_drawing_selection_rect || is_dragging_selection_rect) {
+                if (selection.is_drawing || selection.is_dragging) {
                     // Calculate width/height based on current mouse pos
-                    mouse_motion(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect);
+                    mouse_motion(event, &selection.is_drawing, &selection.is_dragging, &selection.start_x, &selection.start_y, &selection.rect);
                 }
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (event->button.button == SDL_BUTTON_LEFT) {
-                    mouse_left_button_up(event, &is_drawing_selection_rect, &is_dragging_selection_rect, &start_x, &start_y, &selection_rect, &save_button->rect, &copy_button->rect);
+                    mouse_left_button_up(event, &selection.is_drawing, &selection.is_dragging, &selection.start_x, &selection.start_y, &selection.rect, &save_button->rect, &copy_button->rect);
                 }
                 if (event->button.button == SDL_BUTTON_RIGHT) {
                     crop_image(); // Cut the image to the selection_rect when right-clicking (for testing purposes, can change this later)
@@ -389,38 +399,38 @@ void process_input(SDL_Event *event, Button *buttons[]) {
             
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                window_width = event->window.data1;
-                window_height = event->window.data2;
+                app_window.width = event->window.data1;
+                app_window.height = event->window.data2;
 
                 // Update fullscreen button position
-                fullscreen_button->rect.x = window_width - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
+                fullscreen_button->rect.x = app_window.width - DEFAULT_BUTTON_SIZE - fscreen_button_spacing;
                 fullscreen_button->rect.y = fscreen_button_spacing;
 
                 // Re-center the image
-                image_rect.x = (window_width - image_rect.w) / 2; // Center the image
-                image_rect.y = (window_height - image_rect.h) / 2;
+                screenshot.image_rect.x = (app_window.width - screenshot.image_rect.w) / 2;
+                screenshot.image_rect.y = (app_window.height - screenshot.image_rect.h) / 2;
 
                 break;
                 
             case SDL_EVENT_MOUSE_WHEEL:
                 if (event->wheel.y > 0) {
                     // Zoom in
-                    image_rect.w = image_rect.w * zoom_sens + image_rect.w; // Increase width by a percentage
-                    image_rect.h = image_rect.h * zoom_sens + image_rect.h;
+                    screenshot.image_rect.w = screenshot.image_rect.w * zoom_speeed + screenshot.image_rect.w;
+                    screenshot.image_rect.h = screenshot.image_rect.h * zoom_speeed + screenshot.image_rect.h;
 
-                    zoom_sens = (zoom_sens < 0.30) ? zoom_sens + 0.02 : 0.30;
+                    zoom_speeed = (zoom_speeed < 0.30) ? zoom_speeed + 0.02 : 0.30;
                 } else if (event->wheel.y < 0) {
                     // Zoom out, but prevent the image from becoming too small
-                    if (image_rect.w > zoom_sens && image_rect.h > zoom_sens) {
-                        image_rect.w = image_rect.w - image_rect.w * zoom_sens; // Decrease width by a percentage
-                        image_rect.h = image_rect.h - image_rect.h * zoom_sens; 
+                    if (screenshot.image_rect.w > zoom_speeed && screenshot.image_rect.h > zoom_speeed) {
+                        screenshot.image_rect.w = screenshot.image_rect.w - screenshot.image_rect.w * zoom_speeed;
+                        screenshot.image_rect.h = screenshot.image_rect.h - screenshot.image_rect.h * zoom_speeed; 
 
-                        zoom_sens = (zoom_sens > 0.10) ? zoom_sens - 0.02 : 0.10;
+                        zoom_speeed = (zoom_speeed > 0.10) ? zoom_speeed - 0.02 : 0.10;
                     }
                 }
                 // Re-center the image after zooming
-                image_rect.x = (window_width - image_rect.w) / 2; // Center the image
-                image_rect.y = (window_height - image_rect.h) / 2;
+                screenshot.image_rect.x = (app_window.width - screenshot.image_rect.w) / 2;
+                screenshot.image_rect.y = (app_window.height - screenshot.image_rect.h) / 2;
                 break;
             
             }
@@ -437,96 +447,96 @@ void update() {
 }
 
 void render() {
-    SDL_SetRenderDrawColorStruct(renderer, BACKGROUND_COLOR);
-    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColorStruct(app_window.renderer, BACKGROUND_COLOR);
+    SDL_RenderClear(app_window.renderer);
     
     // Render the loaded image
-    if (display_texture) {
-        SDL_RenderTexture(renderer, display_texture, NULL, &image_rect);
+    if (screenshot.texture) {
+        SDL_RenderTexture(app_window.renderer, screenshot.texture, NULL, &screenshot.image_rect);
     }
 
     // Draw selection rectangle
-    if (is_drawing_selection_rect || is_dragging_selection_rect || (selection_rect.w != 0 && selection_rect.h != 0)) {
+    if (selection.is_drawing || selection.is_dragging || (selection.rect.w != 0 && selection.rect.h != 0)) {
         // Draw the outline
-        SDL_SetRenderDrawColorStruct(renderer, COLOR_SEMI_TRANSPARENT_BLUE);
-        SDL_RenderRect(renderer, &selection_rect);
+        SDL_SetRenderDrawColorStruct(app_window.renderer, COLOR_SEMI_TRANSPARENT_BLUE);
+        SDL_RenderRect(app_window.renderer, &selection.rect);
     }
 
-    // Calculate button positions based on selection_rect
-    if (selection_rect.w != 0 && selection_rect.h != 0 && !(selection_rect.w >= window_width || selection_rect.h >= window_height)) {
+    // Calculate button positions based on selection.rect
+    if (selection.rect.w != 0 && selection.rect.h != 0 && !(selection.rect.w >= app_window.width || selection.rect.h >= app_window.height)) {
         // Position the buttons at the center and below of selection rectangle
-        copy_button->rect.x = selection_rect.x + selection_rect.w / 2 - copy_button->rect.w; 
-        copy_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
-        save_button->rect.x = selection_rect.x + selection_rect.w / 2 - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
-        save_button->rect.y = selection_rect.y + selection_rect.h + 5; // 5 pixels below the rectangle
+        copy_button->rect.x = selection.rect.x + selection.rect.w / 2 - copy_button->rect.w; 
+        copy_button->rect.y = selection.rect.y + selection.rect.h + 5; // 5 pixels below the rectangle
+        save_button->rect.x = selection.rect.x + selection.rect.w / 2 - save_button->rect.w - copy_button->rect.w - 5; // 5 pixels to the left of the copy button
+        save_button->rect.y = selection.rect.y + selection.rect.h + 5; // 5 pixels below the rectangle
     } else {
         // If there is no selection rectangle yet, position the buttons at the bottom right corner
-        copy_button->rect.x = window_width - copy_button->rect.w;
-        copy_button->rect.y = window_height - copy_button->rect.h - 5;
-        save_button->rect.x = window_width - save_button->rect.w - copy_button->rect.w - 5;
-        save_button->rect.y = window_height - save_button->rect.h - 5;
+        copy_button->rect.x = app_window.width - copy_button->rect.w;
+        copy_button->rect.y = app_window.height - copy_button->rect.h - 5;
+        save_button->rect.x = app_window.width - save_button->rect.w - copy_button->rect.w - 5;
+        save_button->rect.y = app_window.height - save_button->rect.h - 5;
 
     }
     // Draw buttons
     for (int i = 0; i < BUTTON_COUNT; i++) {
-        render_button(renderer, all_buttons[i], COLOR_BUTTON_HOVER);
+        render_button(app_window.renderer, all_buttons[i], COLOR_BUTTON_HOVER);
     }
     // Present the rendered frame to the screen
-    SDL_RenderPresent(renderer);
+    SDL_RenderPresent(app_window.renderer);
     return;
 }
 
 void crop_image() {
-    if (compare_frects(selection_rect, image_rect)) return;
-    if (selection_rect.w <= 0 || selection_rect.h <= 0) return;
+    if (compare_frects(selection.rect, screenshot.image_rect)) return;
+    if (selection.rect.w <= 0 || selection.rect.h <= 0) return;
 
      // Compute how much of the surface each logical pixel represents
-    float scale_x = (float)original_surface->w / image_rect.w;
-    float scale_y = (float)original_surface->h / image_rect.h;
+    float scale_x = (float)screenshot.surface->w / screenshot.image_rect.w;
+    float scale_y = (float)screenshot.surface->h / screenshot.image_rect.h;
 
-    // selection_rect is relative to the window, make it relative to image_rect
-    float rel_x = selection_rect.x - image_rect.x;
-    float rel_y = selection_rect.y - image_rect.y;
+    // selection.rect is relative to the window, make it relative to image_rect
+    float rel_x = selection.rect.x - screenshot.image_rect.x;
+    float rel_y = selection.rect.y - screenshot.image_rect.y;
 
     // Map selection into surface space
     SDL_Rect surface_crop = {
         .x = (int)(rel_x * scale_x),
         .y = (int)(rel_y * scale_y),
-        .w = (int)(selection_rect.w * scale_x),
-        .h = (int)(selection_rect.h * scale_y),
+        .w = (int)(selection.rect.w * scale_x),
+        .h = (int)(selection.rect.h * scale_y),
     };
 
     // Clamp to surface bounds
     if (surface_crop.x < 0) surface_crop.x = 0;
     if (surface_crop.y < 0) surface_crop.y = 0;
-    if (surface_crop.x + surface_crop.w > original_surface->w)
-        surface_crop.w = original_surface->w - surface_crop.x;
-    if (surface_crop.y + surface_crop.h > original_surface->h)
-        surface_crop.h = original_surface->h - surface_crop.y;
+    if (surface_crop.x + surface_crop.w > screenshot.surface->w)
+        surface_crop.w = screenshot.surface->w - surface_crop.x;
+    if (surface_crop.y + surface_crop.h > screenshot.surface->h)
+        surface_crop.h = screenshot.surface->h - surface_crop.y;
 
     // Cut the surface
     SDL_Surface *cropped = SDL_CreateSurface(
         surface_crop.w, surface_crop.h,
-        original_surface->format
+        screenshot.surface->format
     );
 
-    SDL_BlitSurface(original_surface, &surface_crop, cropped, NULL);
+    SDL_BlitSurface(screenshot.surface, &surface_crop, cropped, NULL);
 
-    push_undo_state(renderer, original_surface, display_texture, image_rect, display_texture_width, display_texture_height);
+    push_undo_state(app_window.renderer, screenshot.surface, screenshot.texture, screenshot.image_rect, screenshot.texture_width, screenshot.texture_height);
 
     // Replace original surface and rebuild texture
-    SDL_DestroySurface(original_surface);
-    original_surface = cropped;
+    SDL_DestroySurface(screenshot.surface);
+    screenshot.surface = cropped;
 
-    SDL_DestroyTexture(display_texture);
-    display_texture = SDL_CreateTextureFromSurface(renderer, original_surface);
+    SDL_DestroyTexture(screenshot.texture);
+    screenshot.texture = SDL_CreateTextureFromSurface(app_window.renderer, screenshot.surface);
 
     // Reset image_rect to match new texture dimensions
-    image_rect.w = (float)original_surface->w / scale_x;
-    image_rect.h = (float)original_surface->h / scale_y;
-    image_rect.x = (window_width - image_rect.w) / 2;
-    image_rect.y = (window_height - image_rect.h) / 2;
+    screenshot.image_rect.w = (float)screenshot.surface->w / scale_x;
+    screenshot.image_rect.h = (float)screenshot.surface->h / scale_y;
+    screenshot.image_rect.x = (app_window.width - screenshot.image_rect.w) / 2;
+    screenshot.image_rect.y = (app_window.height - screenshot.image_rect.h) / 2;
 
-    selection_rect = image_rect; // Set selection_rect to the new image_rect after cutting
+    selection.rect = screenshot.image_rect; // Set selection.rect to the new image_rect after cutting
 }
 
