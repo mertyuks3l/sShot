@@ -1,7 +1,7 @@
 #include "mouse.h"
 #include <stdio.h>
 
-float dx, dy;
+static float dx, dy;
 
 void mouse_left_button_down(SDL_Event *event, bool *is_drawing, bool *is_dragging, float *start_x, float *start_y, SDL_FRect *current_rect, Button *buttons[]) {
     // Handle left button down event
