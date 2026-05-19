@@ -67,6 +67,11 @@ Pre-built binaries(including AppImage) for sShot are available on the [Releases]
 ## Usage
 To take a screenshot, simply run the `sshot` command in your terminal or from the application menu. You can choose to capture the entire screen or select a specific area. The captured screenshot will be saved in the specified directory and copied to the clipboard.
 
+### On Multi-Monitor Setups
+
+>[!NOTE]   
+> On multi-monitor setups, sShot captures the entire virtual screen on X11, while on Wayland it captures the monitor where the application is launched. This is due to the limitations of the Wayland protocol, which does not allow applications to capture content from other monitors for security reasons.
+
 ### Keybindings
 |Key|Action|
 |-----|--------|

@@ -30,23 +30,26 @@ static void on_portal_response(GDBusConnection *conn, const gchar *sender, const
 }
 
 void filepath_copy(char* dest, const char* src) {
-    /*
-        Copies the file path from src to dest, ensuring that dest is null-terminated and does not exceed 255 characters.
-        Used for copying the screenshot URI to a global variable while ensuring safety and preventing buffer overflows.
-        Assumed that src is smaller than 256 characters, but the function will handle cases where it is not by truncating and ensuring null-termination.
-    */
-
-    // check if src is not NULL
     if (src == NULL) {
-        dest[0] = '\0'; // Set dest to an empty string
+        dest[0] = '\0';
         return;
     }
+
     const char *prefix = "file://";
     size_t prefix_len = strlen(prefix);
+    const char *path_start = src;
 
+    // Strip file:// prefix if present
+    if (strncmp(src, prefix, prefix_len) == 0) {
+        path_start = src + prefix_len;
+    }
 
-    const char *path_start = src + prefix_len;
-    size_t path_len = strlen(path_start); // length of just the path portion
+    size_t path_len = strlen(path_start);
+    size_t max_len = 255; // ss_filepath is 256 bytes
+
+    if (path_len > max_len) {
+        path_len = max_len;
+    }
 
     strncpy(dest, path_start, path_len);
     dest[path_len] = '\0';

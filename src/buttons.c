@@ -77,6 +77,6 @@ void destroy_button(Button* button) {
     free(button);
 }
 
-void bind_button_to_function(Button* button, void (*on_click)()) {
+void bind_button_to_function(Button* button, void (*on_click)(ButtonType type)) {
     button->on_click = on_click;
 }

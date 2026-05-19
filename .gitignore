@@ -1,0 +1,10 @@
+obj/
+out
+sshot
+Notes.md
+src/screenshot.c
+src/sshot
+test_sss/*
+appimage/AppDir
+appimage/linuxdeploy-x86_64.AppImage
+sshot_code_review.md
