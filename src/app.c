@@ -44,7 +44,7 @@ Selection selection;
 SDL_Event event;
 
 int current_session;
-float zoom_speeed = 0.05; // Sensitivity for zooming in/out the image
+float zoom_speed = 0.05; // Sensitivity for zooming in/out the image
 bool is_mouse_over_buttons = false;
 
 Button *all_buttons[BUTTON_COUNT];
@@ -415,17 +415,17 @@ void process_input(SDL_Event *event, Button *buttons[]) {
             case SDL_EVENT_MOUSE_WHEEL:
                 if (event->wheel.y > 0) {
                     // Zoom in
-                    screenshot.image_rect.w = screenshot.image_rect.w * zoom_speeed + screenshot.image_rect.w;
-                    screenshot.image_rect.h = screenshot.image_rect.h * zoom_speeed + screenshot.image_rect.h;
+                    screenshot.image_rect.w = screenshot.image_rect.w * zoom_speed + screenshot.image_rect.w;
+                    screenshot.image_rect.h = screenshot.image_rect.h * zoom_speed + screenshot.image_rect.h;
 
-                    zoom_speeed = (zoom_speeed < 0.30) ? zoom_speeed + 0.02 : 0.30;
+                    zoom_speed = (zoom_speed < 0.30) ? zoom_speed + 0.02 : 0.30;
                 } else if (event->wheel.y < 0) {
                     // Zoom out, but prevent the image from becoming too small
-                    if (screenshot.image_rect.w > zoom_speeed && screenshot.image_rect.h > zoom_speeed) {
-                        screenshot.image_rect.w = screenshot.image_rect.w - screenshot.image_rect.w * zoom_speeed;
-                        screenshot.image_rect.h = screenshot.image_rect.h - screenshot.image_rect.h * zoom_speeed; 
+                    if (screenshot.image_rect.w > zoom_speed && screenshot.image_rect.h > zoom_speed) {
+                        screenshot.image_rect.w = screenshot.image_rect.w - screenshot.image_rect.w * zoom_speed;
+                        screenshot.image_rect.h = screenshot.image_rect.h - screenshot.image_rect.h * zoom_speed; 
 
-                        zoom_speeed = (zoom_speeed > 0.10) ? zoom_speeed - 0.02 : 0.10;
+                        zoom_speed = (zoom_speed > 0.10) ? zoom_speed - 0.02 : 0.10;
                     }
                 }
                 // Re-center the image after zooming
