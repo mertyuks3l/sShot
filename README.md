@@ -38,8 +38,7 @@ Pre-built binaries(including AppImage) for sShot are available on the [Releases]
    ```
 
    > [!NOTE]   
-   > On Debian/Ubuntu, you may need to add the `experimental` repository to get the latest SDL3 packages. Or you can build SDL3 from source if you    > prefer. See the [SDL3 installation guide](https://github.com/libsdl-org/SDL/blob/main/INSTALL.md) for more details. 
-   >
+   > On Debian/Ubuntu, you may need to add the `experimental` repository to get the latest SDL3 packages. Or you can build SDL3 from source if you prefer. See the [SDL3 installation guide (https://github.com/libsdl-org/SDL/blob/main/INSTALL.md) for more details. 
 
    #### On Arch Linux:
 
